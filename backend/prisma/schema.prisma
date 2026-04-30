@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  password  String
+  role      String   @default("student") // "student" | "instructor"
+
+  createdAt DateTime @default(now())
+  
+  attempts    Attempt[]
+  assignments Assignment[]
+}
+
+model Quiz {
+  id        Int        @id @default(autoincrement())
+  topic     String
+  type      String     @default("mcq") // "mcq" | "short" | "long"
+  createdAt DateTime   @default(now())
+
+  questions   Question[]
+  attempts    Attempt[]
+  assignments Assignment[]
+}
+
+model Question {
+  id            Int     @id @default(autoincrement())
+  text          String
+  options       Json    // ["option1", "option2", "option3", "option4"]
+  correctAnswer Int     // 0-3 for MCQ
+
+  quizId        Int
+  quiz          Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers       Answer[] // ✅ NEW: Track user answers
+}
+
+model Attempt {
+  id          Int @id @default(autoincrement())
+  userId      Int
+  quizId      Int
+  assignmentId Int? // ✅ NEW: Link to assignment
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz        Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  assignment  Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  score       Int
+  percentage  Float     // ✅ NEW: (score/total)*100
+  answers     Answer[]  // ✅ NEW: Individual question answers
+  
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  
+  @@unique([userId, quizId, id]) // Allow multiple attempts per user per quiz
+}
+
+model Answer {
+  id          Int @id @default(autoincrement())
+  attemptId   Int
+  questionId  Int
+  
+  selectedOption Int? // For MCQ (0-3)
+  userAnswer  String?  // For short/long answers
+  isCorrect   Boolean?
+
+  attempt     Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Assignment {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  quizId    Int
+
+  deadline  DateTime?
+  weightage Float     @default(1.0) // ✅ Changed to Float for flexibility
+  status    String    @default("pending") // "pending" | "completed" | "submitted"
+  
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz      Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  attempts  Attempt[] // ✅ NEW: Track attempts for this assignment
+
+  @@unique([userId, quizId]) // ✅ NEW: Prevent duplicate assignments
+}
