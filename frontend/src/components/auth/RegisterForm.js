@@ -3,122 +3,151 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { registerUser } from '@/lib/actions';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, AlertCircle } from 'lucide-react';
 
-export default function RegisterForm() {
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('student');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function RegisterForm({ onSuccess }) {
   const router = useRouter();
 
-  async function handleSubmit(e) {
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'student',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (e) => {
+    setForm((prev) => ({ ...prev, [e.target.id]: e.target.value }));
+  };
+
+  const handleRoleChange = (value) => {
+    setForm((prev) => ({ ...prev, role: value }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
     setLoading(true);
 
-    const result = await registerUser(email, name, password, role);
+    try {
+      const result = await registerUser(
+        form.email,
+        form.name,
+        form.password,
+        form.role
+      );
 
-    if (result.success) {
-      router.push('/login');
-    } else {
-      setError(result.message);
+      if (result.success) {
+        localStorage.setItem('user', JSON.stringify(result.user));
+        localStorage.setItem('userId', result.user.id);
+
+        onSuccess?.();
+
+        setTimeout(() => {
+          router.push(
+            form.role === 'instructor'
+              ? '/instructor/dashboard'
+              : '/dashboard'
+          );
+        }, 200);
+      } else {
+        setError(result.message || 'Registration failed');
+      }
+    } catch {
+      setError('An error occurred');
+    } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center">📝 Register</h1>
+    <form onSubmit={handleSubmit} className='space-y-6'>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          ❌ {error}
-        </div>
+        <Alert className='bg-red-500/10 border-red-500/50 text-red-400'>
+          <AlertCircle className='h-4 w-4' />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <div>
-        <label className="block text-sm font-semibold mb-2">Name</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+      <div className='space-y-2'>
+        <Label className='text-sm text-gray-300'>Full Name</Label>
+        <Input
+          id='name'
+          value={form.name}
+          onChange={handleChange}
+          placeholder='John Doe'
+          className='bg-zinc-800 border-zinc-700 text-white'
           required
-          placeholder="John Doe"
-          className="w-full border rounded px-4 py-2 focus:outline-none focus:border-blue-500"
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold mb-2">Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+      <div className='space-y-2'>
+        <Label className='text-sm text-gray-300'>Email</Label>
+        <Input
+          id='email'
+          type='email'
+          value={form.email}
+          onChange={handleChange}
+          placeholder='you@example.com'
+          className='bg-zinc-800 border-zinc-700 text-white'
           required
-          placeholder="your@email.com"
-          className="w-full border rounded px-4 py-2 focus:outline-none focus:border-blue-500"
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold mb-2">Role</label>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full border rounded px-4 py-2 focus:outline-none focus:border-blue-500"
-        >
-          <option value="student">👨‍🎓 Student</option>
-          <option value="instructor">👨‍🏫 Instructor</option>
-        </select>
+      <div className='space-y-2'>
+        <Label className='text-sm text-gray-300'>Role</Label>
+        <Select value={form.role} onValueChange={handleRoleChange}>
+          <SelectTrigger className='bg-zinc-800 border-zinc-700 text-white'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className='bg-zinc-800 border-zinc-700'>
+            <SelectItem value='student'>Student</SelectItem>
+            <SelectItem value='instructor'>Instructor</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold mb-2">Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+      <div className='space-y-2'>
+        <Label className='text-sm text-gray-300'>Password</Label>
+        <Input
+          id='password'
+          type='password'
+          value={form.password}
+          onChange={handleChange}
+          placeholder='••••••••'
+          className='bg-zinc-800 border-zinc-700 text-white'
           required
-          placeholder="••••••••"
-          className="w-full border rounded px-4 py-2 focus:outline-none focus:border-blue-500"
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-semibold mb-2">Confirm Password</label>
-        <input
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          placeholder="••••••••"
-          className="w-full border rounded px-4 py-2 focus:outline-none focus:border-blue-500"
-        />
-      </div>
-
-      <button
-        type="submit"
+      <Button
+        type='submit'
         disabled={loading}
-        className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 disabled:opacity-50"
+        className='w-full bg-white text-black hover:bg-gray-200'
       >
-        {loading ? 'Registering...' : 'Register'}
-      </button>
-
-      <p className="text-center text-sm text-gray-600">
-        Already have account?{' '}
-        <a href="/login" className="text-blue-600 hover:underline font-semibold">
-          Login here
-        </a>
-      </p>
+        {loading ? (
+          <>
+            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            Creating account...
+          </>
+        ) : (
+          'Sign Up'
+        )}
+      </Button>
     </form>
   );
 }

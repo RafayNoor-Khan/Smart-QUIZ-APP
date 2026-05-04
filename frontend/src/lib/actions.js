@@ -18,13 +18,23 @@ async function apiCall(endpoint, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  const data = await response.json();
-  return data;
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || data.error || `API Error: ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`API call error for ${endpoint}:`, error);
+    throw error;
+  }
 }
 
 // ===== AUTH =====
@@ -34,6 +44,11 @@ export async function registerUser(email, name, password, role) {
       method: 'POST',
       body: JSON.stringify({ email, name, password, role }),
     });
+
+    if (result.error) {
+      return { success: false, message: result.error };
+    }
+
     return { success: true, user: result.user };
   } catch (error) {
     return { success: false, message: error.message };
@@ -47,7 +62,11 @@ export async function loginUser(email, password) {
       body: JSON.stringify({ email, password }),
     });
 
-    // Store token
+    if (!result.access_token || !result.user) {
+      return { success: false, message: 'Invalid login response' };
+    }
+
+    // Store token in cookie
     const cookieStore = await cookies();
     cookieStore.set('token', result.access_token, {
       httpOnly: true,
@@ -56,7 +75,10 @@ export async function loginUser(email, password) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    return { success: true, user: result.user };
+    // Remove password from user object before returning
+    const { password: _, ...safeUser } = result.user;
+
+    return { success: true, user: safeUser };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -72,7 +94,7 @@ export async function logoutUser() {
 export async function getAllQuizzes() {
   try {
     const result = await apiCall('/quizzes/all');
-    return { success: true, data: result.data || [] };
+    return { success: true, data: result.data || result || [] };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -81,44 +103,101 @@ export async function getAllQuizzes() {
 export async function getQuizById(id) {
   try {
     const result = await apiCall(`/quizzes/${id}`);
-    return { success: true, data: result.data };
+    return { success: true, data: result.data || result };
   } catch (error) {
     return { success: false, message: error.message };
   }
 }
 
-export async function generateQuiz(topic) {
+export async function generateQuiz(topic, numberOfQuestions = 10) {
   try {
+    console.log('Server action - generateQuiz called with:', { topic, numberOfQuestions });
+
     const result = await apiCall('/quizzes/generate', {
       method: 'POST',
-      body: JSON.stringify({ topic }),
+      body: JSON.stringify({
+        topic: topic.trim(),
+        numberOfQuestions: parseInt(numberOfQuestions) || 10,
+      }),
     });
-    return { success: true, data: result.data };
+
+    console.log('Server action - generateQuiz result:', result);
+
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message || 'Failed to generate quiz',
+      };
+    }
+
+    return {
+      success: true,
+      data: result.data || result,
+    };
   } catch (error) {
-    return { success: false, message: error.message };
+    console.error('Error generating quiz:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to generate quiz',
+    };
   }
 }
 
 export async function saveQuiz(data) {
   try {
+    console.log('Server action - saveQuiz called with:', data);
+
+    if (!data || !data.topic || !Array.isArray(data.questions)) {
+      return {
+        success: false,
+        message: 'Invalid quiz data structure',
+      };
+    }
+
     const result = await apiCall('/quizzes/save', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        topic: data.topic,
+        type: data.type || 'mcq',
+        questions: data.questions,
+      }),
     });
-    return { success: true, data: result.data };
+
+    console.log('Server action - saveQuiz result:', result);
+
+    return { success: true, data: result.data || result };
   } catch (error) {
+    console.error('Error saving quiz:', error);
     return { success: false, message: error.message };
   }
 }
 
-export async function submitQuiz(quizId, userId, answers) {
+export async function submitQuiz(quizId, userId, answers, assignmentId) {
   try {
     const result = await apiCall(`/quizzes/${quizId}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ userId, answers }),
+      body: JSON.stringify({
+        userId,
+        answers,
+        assignmentId,
+        submittedAt: new Date().toISOString(),
+      }),
     });
-    return { success: true, data: result.data };
+
+    if (!result.success) {
+      return { success: false, message: result.message || 'Submission failed' };
+    }
+
+    return {
+      success: true,
+      data: {
+        attemptId: result.data?.id || result.data?.attemptId,
+        score: result.data?.score,
+        percentage: result.data?.percentage,
+      },
+    };
   } catch (error) {
+    console.error('Submit quiz error:', error);
     return { success: false, message: error.message };
   }
 }
@@ -126,7 +205,7 @@ export async function submitQuiz(quizId, userId, answers) {
 export async function getQuizAnalytics(quizId) {
   try {
     const result = await apiCall(`/quizzes/${quizId}/analytics`);
-    return { success: true, data: result.data };
+    return { success: true, data: result.data || result };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -136,7 +215,7 @@ export async function getQuizAnalytics(quizId) {
 export async function getUserAssignments(userId) {
   try {
     const result = await apiCall(`/assignments/user/${userId}`);
-    return { success: true, data: result.data || [] };
+    return { success: true, data: result.data || result || [] };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -145,7 +224,7 @@ export async function getUserAssignments(userId) {
 export async function getPendingAssignments(userId) {
   try {
     const result = await apiCall(`/assignments/user/${userId}/pending`);
-    return { success: true, data: result.data || [] };
+    return { success: true, data: result.data || result || [] };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -154,7 +233,7 @@ export async function getPendingAssignments(userId) {
 export async function getCompletedAssignments(userId) {
   try {
     const result = await apiCall(`/assignments/user/${userId}/completed`);
-    return { success: true, data: result.data || [] };
+    return { success: true, data: result.data || result || [] };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -166,7 +245,7 @@ export async function createAssignment(userId, quizId, deadline, weightage) {
       method: 'POST',
       body: JSON.stringify({ userId, quizId, deadline, weightage }),
     });
-    return { success: true, data: result.data };
+    return { success: true, data: result.data || result };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -178,7 +257,20 @@ export async function assignQuizToAll(quizId, deadline) {
       method: 'POST',
       body: JSON.stringify({ quizId, deadline }),
     });
-    return { success: true, data: result.data };
+    return { success: true, data: result.data || result };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+
+}
+// Add this to lib/actions.js
+
+export async function deleteQuiz(quizId) {
+  try {
+    const result = await apiCall(`/quizzes/${quizId}`, {
+      method: 'DELETE',
+    });
+    return { success: true, data: result };
   } catch (error) {
     return { success: false, message: error.message };
   }

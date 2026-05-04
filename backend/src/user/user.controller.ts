@@ -5,21 +5,21 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  // 1. INSTRUCTOR: Get all students for the "Assign Quiz" dropdown
   @Get('students')
-  getAllStudents() {
-    return this.userService.getAllStudents();
+  async getAllStudents() {
+    const data = await this.userService.getAllStudents();
+    return { success: true, data };
   }
 
-  // 2. INSTRUCTOR: Get a detailed report for a specific student
   @Get('students/:id/report')
-  getReport(@Param('id') id: string) {
-    return this.userService.getStudentReport(Number(id));
+  async getReport(@Param('id') id: string) {
+    const data = await this.userService.getStudentReport(+id);
+    return { success: true, data };
   }
 
-  // 3. STUDENT: Get data for their own dashboard (Pending quizzes + history)
   @Get('dashboard/:id')
-  getDashboard(@Param('id') id: string) {
-    return this.userService.getStudentDashboard(Number(id));
+  async getDashboard(@Param('id') id: string) {
+    const data = await this.userService.getStudentDashboard(+id);
+    return { success: true, data };
   }
 }

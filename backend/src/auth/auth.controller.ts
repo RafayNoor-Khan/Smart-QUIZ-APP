@@ -14,31 +14,38 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // 1. REGISTER
+  // =========================
+  // REGISTER
+  // =========================
   @Post('register')
-  register(@Body() body: any) {
-    // We send all 4 required arguments to the service
-    return this.authService.register(
-      body.name,
-      body.email,
-      body.password,
-      body.role,
+  async register(@Body() body: any) {
+    const { name, email, password, role } = body;
+
+    const result = await this.authService.register(
+      name,
+      email,
+      password,
+      role,
     );
+
+    return result;
   }
 
-  // 2. LOGIN
-  // UseGuards(LocalAuthGuard) handles the email/password check via Strategy
+  // =========================
+  // LOGIN
+  // =========================
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  login(@Request() req) {
-    // At this point, req.user is already populated by LocalStrategy
+  async login(@Request() req: any) {
     return this.authService.login(req.user);
   }
 
-  // 3. PROFILE
+  // =========================
+  // PROFILE
+  // =========================
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Request() req) {
-    return req.user;
+  getProfile(@Request() req: any) {
+    return { success: true, data: req.user };
   }
 }

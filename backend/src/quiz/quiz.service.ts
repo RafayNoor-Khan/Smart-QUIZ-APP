@@ -1,10 +1,5 @@
 import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  Injectable,
-  BadRequestException,
-  InternalServerErrorException,
-} from '@nestjs/common';
-
+import { Injectable } from '@nestjs/common';
 import Groq from 'groq-sdk';
 
 @Injectable()
@@ -15,211 +10,340 @@ export class QuizService {
     this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
 
-  async generateQuiz(topic: string) {
+  // ✅ Helper: delay (DRY)
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // ✅ Helper: calculate score (DRY)
+  private calculateScore(questions: any[], answers: number[]) {
+    let score = 0;
+
+    questions.forEach((q, i) => {
+      if (answers[i] === q.correctAnswer) score++;
+    });
+
+    const percentage = Math.round((score / questions.length) * 100);
+
+    return { score, percentage };
+  }
+
+  // ✅ Helper: validate AI questions
+  private validateQuestions(questions: any[]) {
+    return questions
+      .map((q) => {
+        if (!q.question || !Array.isArray(q.options) || q.options.length !== 4) {
+          return null;
+        }
+
+        const answerIndex = typeof q.answer === 'number' ? q.answer : 0;
+
+        if (answerIndex < 0 || answerIndex > 3) return null;
+
+        return {
+          question: String(q.question).trim(),
+          options: q.options.map((opt: any) => String(opt).trim()),
+          answer: answerIndex,
+        };
+      })
+      .filter((q) => q !== null);
+  }
+
+  // =========================
+  // GENERATE QUIZ (AI)
+  // =========================
+  async generateQuiz(topic: string, numberOfQuestions: number = 10) {
     if (!topic) {
-      throw new BadRequestException('Topic required');
+      return { success: false, message: 'Topic is required' };
+    }
+
+    const numQuestions = Math.min(Math.max(numberOfQuestions, 1), 100);
+
+    try {
+      let allQuestions: any[] = [];
+      const batchSize = 5;
+      const totalBatches = Math.ceil(numQuestions / batchSize);
+
+      for (let batch = 0; batch < totalBatches && allQuestions.length < numQuestions; batch++) {
+        const remaining = numQuestions - allQuestions.length;
+        const count = Math.min(batchSize, remaining);
+
+        const prompt = `Generate exactly ${count} MCQ questions about "${topic}".
+
+Return ONLY this JSON array:
+[
+  {"question": "Q?", "options": ["A","B","C","D"], "answer": 0}
+]`;
+
+        try {
+          const response = await this.groq.chat.completions.create({
+            model: 'llama-3.1-8b-instant',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.5,
+            max_tokens: 1500,
+          });
+
+          const content = response?.choices?.[0]?.message?.content;
+          if (!content) continue;
+
+          const match = content.match(/\[[\s\S]*\]/);
+          if (!match) continue;
+
+          const parsed = JSON.parse(match[0]);
+          if (!Array.isArray(parsed)) continue;
+
+          const valid = this.validateQuestions(parsed);
+          allQuestions.push(...valid);
+
+        } catch (err: any) {
+          // retry if rate limited
+          if (err.message?.includes('rate_limit')) {
+            await this.sleep(3000);
+            batch--;
+            continue;
+          }
+        }
+
+        // small delay between batches
+        if (batch < totalBatches - 1) {
+          await this.sleep(800);
+        }
+      }
+
+      if (allQuestions.length === 0) {
+        return {
+          success: false,
+          message: 'Failed to generate questions',
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          topic,
+          type: 'mcq',
+          questions: allQuestions.slice(0, numQuestions),
+        },
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to generate quiz',
+      };
+    }
+  }
+
+  // =========================
+  // SAVE QUIZ
+  // =========================
+  async saveQuiz(data: any) {
+    if (!data?.topic || !data?.questions?.length || data.questions.length > 100) {
+      return null;
     }
 
     try {
-      const response = await this.groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a quiz generator. Return ONLY valid JSON with this format:
-{
-  "topic": "string",
-  "type": "mcq",
-  "questions": [
-    {
-      "question": "string",
-      "options": ["opt1", "opt2", "opt3", "opt4"],
-      "answer": 0
-    }
-  ]
-}`,
+      return await this.prisma.quiz.create({
+        data: {
+          topic: data.topic,
+          type: data.type || 'mcq',
+          questions: {
+            create: data.questions.map((q: any) => ({
+              text: q.question,
+              options: q.options,
+              correctAnswer: q.answer,
+            })),
           },
-          {
-            role: 'user',
-            content: `Create 5 MCQ questions on: ${topic}`,
-          },
-        ],
-        response_format: { type: 'json_object' },
-      });
-
-      // Fix: Check if content exists before parsing
-      const content = response?.choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new InternalServerErrorException('AI returned empty response');
-      }
-
-      return JSON.parse(content); // Now content is guaranteed to be a string
-    } catch (error) {
-      throw new InternalServerErrorException(
-        error.message || 'Failed to generate quiz',
-      );
-    }
-  }
-
-  async saveQuiz(data: any) {
-    if (!data.topic || !data.questions) {
-      throw new Error('Topic and questions required');
-    }
-
-    return this.prisma.quiz.create({
-      data: {
-        topic: data.topic,
-        type: data.type || 'mcq',
-        questions: {
-          create: data.questions.map((q: any) => ({
-            text: q.question,
-            options: q.options,
-            correctAnswer: q.answer,
-          })),
         },
-      },
-      include: { questions: true },
-    });
+        include: { questions: true },
+      });
+    } catch {
+      return null;
+    }
   }
 
+  // =========================
+  // GET QUIZZES
+  // =========================
   async getAllQuizzes() {
-    return this.prisma.quiz.findMany({
-      include: { questions: true },
-    });
+    try {
+      return await this.prisma.quiz.findMany({
+        include: { questions: true },
+      });
+    } catch {
+      return null;
+    }
   }
 
   async getQuiz(id: number) {
-    const quiz = await this.prisma.quiz.findUnique({
-      where: { id },
-      include: { questions: true },
+    if (!id || id < 1) return null;
+
+    try {
+      return await this.prisma.quiz.findUnique({
+        where: { id },
+        include: { questions: true },
+      });
+    } catch {
+      return null;
+    }
+  }
+  async deleteQuiz(id: number) {
+  if (!id || id < 1) return null;
+
+  try {
+    const quiz = await this.prisma.quiz.findUnique({ where: { id } });
+    if (!quiz) return null;
+
+    // Delete related records in order
+    await this.prisma.answer.deleteMany({
+      where: { question: { quizId: id } },
     });
 
-    if (!quiz) throw new Error('Quiz not found');
-    return quiz;
+    await this.prisma.attempt.deleteMany({ where: { quizId: id } });
+
+    await this.prisma.assignment.deleteMany({ where: { quizId: id } });
+
+    await this.prisma.question.deleteMany({ where: { quizId: id } });
+
+    const deleted = await this.prisma.quiz.delete({ where: { id } });
+
+    return deleted;
+  } catch {
+    return null;
+  }
   }
 
+  // =========================
+  // ASSIGN TO ALL STUDENTS (optimized)
+  // =========================
   async assignQuizToAll(quizId: number, deadline?: string) {
-    const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
-    if (!quiz) throw new Error('Quiz not found');
+    try {
+      const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
+      if (!quiz) return null;
 
-    const students = await this.prisma.user.findMany({
-      where: { role: 'student' },
-    });
-
-    let count = 0;
-    for (const student of students) {
-      const exists = await this.prisma.assignment.findFirst({
-        where: { quizId, userId: student.id },
+      const students = await this.prisma.user.findMany({
+        where: { role: 'student' },
+        select: { id: true },
       });
 
-      if (!exists) {
-        await this.prisma.assignment.create({
-          data: {
-            quizId,
-            userId: student.id,
-            deadline: deadline ? new Date(deadline) : null,
-            status: 'pending',
-          },
-        });
-        count++;
-      }
-    }
+      const existing = await this.prisma.assignment.findMany({
+        where: { quizId },
+        select: { userId: true },
+      });
 
-    return { message: `Assigned to ${count} students`, count };
+      const existingIds = new Set(existing.map((e) => e.userId));
+
+      const newAssignments = students
+        .filter((s) => !existingIds.has(s.id))
+        .map((s) => ({
+          quizId,
+          userId: s.id,
+          deadline: deadline ? new Date(deadline) : null,
+          status: 'pending',
+        }));
+
+      await this.prisma.assignment.createMany({ data: newAssignments });
+
+      return {
+        message: `Assigned to ${newAssignments.length} students`,
+        assignedCount: newAssignments.length,
+      };
+    } catch {
+      return null;
+    }
   }
 
-  async submitAttempt(userId: number, quizId: number, answers: any[]) {
-    const quiz = await this.prisma.quiz.findUnique({
-      where: { id: quizId },
-      include: { questions: true },
-    });
+  // =========================
+  // SUBMIT QUIZ
+  // =========================
+  async submitAttempt(userId: number, quizId: number, answers: number[]) {
+    try {
+      const quiz = await this.prisma.quiz.findUnique({
+        where: { id: quizId },
+        include: { questions: true },
+      });
 
-    if (!quiz) throw new Error('Quiz not found');
+      if (!quiz || answers.length !== quiz.questions.length) return null;
 
-    let score = 0;
-    quiz.questions.forEach((q, i) => {
-      if (Number(answers[i]) === q.correctAnswer) {
-        score++;
-      }
-    });
+      const { score, percentage } = this.calculateScore(
+        quiz.questions,
+        answers,
+      );
 
-    const percentage = (score / quiz.questions.length) * 100;
+      const assignment = await this.prisma.assignment.findFirst({
+        where: { userId, quizId },
+      });
 
-    const assignment = await this.prisma.assignment.findFirst({
-      where: { userId, quizId },
-    });
-
-    const attempt = await this.prisma.attempt.create({
-      data: {
-        userId,
-        quizId,
-        assignmentId: assignment?.id,
-        score,
-        percentage,
-      },
-    });
-
-    // Store individual answers
-    for (let i = 0; i < quiz.questions.length; i++) {
-      const isCorrect = Number(answers[i]) === quiz.questions[i].correctAnswer;
-      await this.prisma.answer.create({
+      const attempt = await this.prisma.attempt.create({
         data: {
-          attemptId: attempt.id,
-          questionId: quiz.questions[i].id,
-          selectedOption: answers[i],
-          isCorrect,
+          userId,
+          quizId,
+          assignmentId: assignment?.id,
+          score,
+          percentage,
         },
       });
-    }
 
-    // Mark assignment as completed
-    if (assignment) {
-      await this.prisma.assignment.update({
-        where: { id: assignment.id },
-        data: { status: 'completed' },
+      // save answers
+      await this.prisma.answer.createMany({
+        data: quiz.questions.map((q, i) => ({
+          attemptId: attempt.id,
+          questionId: q.id,
+          selectedOption: answers[i],
+          isCorrect: answers[i] === q.correctAnswer,
+        })),
       });
-    }
 
-    return { score, percentage: Math.round(percentage) };
+      if (assignment) {
+        await this.prisma.assignment.update({
+          where: { id: assignment.id },
+          data: { status: 'completed' },
+        });
+      }
+
+      return { score, percentage };
+    } catch {
+      return null;
+    }
   }
 
+  // =========================
+  // ANALYTICS
+  // =========================
   async getQuizAnalytics(quizId: number) {
-    const attempts = await this.prisma.attempt.findMany({
-      where: { quizId },
-    });
+    if (!quizId || quizId < 1) return null;
 
-    const assignments = await this.prisma.assignment.findMany({
-      where: { quizId },
-    });
+    try {
+      const attempts = await this.prisma.attempt.findMany({ where: { quizId } });
+      const assignments = await this.prisma.assignment.findMany({ where: { quizId } });
 
-    if (attempts.length === 0) {
+      if (attempts.length === 0) {
+        return {
+          totalAssigned: assignments.length,
+          totalAttempts: 0,
+          completionRate: 0,
+          averageScore: 0,
+          distribution: { excellent: 0, good: 0, average: 0, poor: 0 },
+        };
+      }
+
+      const avg =
+        attempts.reduce((sum, a) => sum + a.percentage, 0) / attempts.length;
+
       return {
         totalAssigned: assignments.length,
-        totalAttempts: 0,
-        completionRate: 0,
-        averageScore: 0,
-        distribution: { excellent: 0, good: 0, average: 0, poor: 0 },
+        totalAttempts: attempts.length,
+        completionRate: Math.round((attempts.length / assignments.length) * 100),
+        averageScore: Math.round(avg),
+        topPerformers: attempts.filter((a) => a.percentage >= 90).length,
+        distribution: {
+          excellent: attempts.filter((a) => a.percentage >= 90).length,
+          good: attempts.filter((a) => a.percentage >= 70 && a.percentage < 90).length,
+          average: attempts.filter((a) => a.percentage >= 50 && a.percentage < 70).length,
+          poor: attempts.filter((a) => a.percentage < 50).length,
+        },
       };
+    } catch {
+      return null;
     }
-
-    const avgPercentage =
-      attempts.reduce((sum, a) => sum + a.percentage, 0) / attempts.length;
-
-    return {
-      totalAssigned: assignments.length,
-      totalAttempts: attempts.length,
-      completionRate: Math.round((attempts.length / assignments.length) * 100),
-      averageScore: Math.round(avgPercentage),
-      topPerformers: attempts.filter((a) => a.percentage >= 90).length,
-      distribution: {
-        excellent: attempts.filter((a) => a.percentage >= 90).length,
-        good: attempts.filter((a) => a.percentage >= 70 && a.percentage < 90)
-          .length,
-        average: attempts.filter((a) => a.percentage >= 50 && a.percentage < 70)
-          .length,
-        poor: attempts.filter((a) => a.percentage < 50).length,
-      },
-    };
   }
 }

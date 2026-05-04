@@ -1,58 +1,79 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { logoutUser } from '@/lib/actions';
-import { useState, useEffect } from 'react';
 
-export default function Navbar() {
+export function Navbar() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
+    try {
+      const storedUser = localStorage.getItem('user');
+
+      if (storedUser && storedUser !== 'undefined' && storedUser !== 'null') {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (err) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const handleLogout = async () => {
-    await logoutUser();
-    localStorage.removeItem('user');
+  const handleLogout = () => {
+    localStorage.clear();
     setUser(null);
-    router.push('/login');
+    router.push('/');
   };
 
-  return (
-    <nav className="bg-white shadow-md border-b">
-      <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-        <Link href="/" className="font-bold text-2xl text-blue-600">
-          📚 QuizHub
-        </Link>
+  if (loading) return null;
 
-        {user ? (
-          <div className="flex items-center gap-4">
-            <span className="text-gray-700 font-medium">{user.name}</span>
-            <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold">
-              {user.role === 'student' ? '👨‍🎓 Student' : '👨‍🏫 Instructor'}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-            >
-              Logout
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Link href="/login" className="border px-4 py-2 rounded hover:bg-gray-50">
-              Login
-            </Link>
-            <Link href="/register" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-              Register
-            </Link>
-          </div>
-        )}
+  return (
+    <nav className='border-b border-zinc-200 bg-white'>
+      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
+        
+        <div className='flex items-center justify-between h-14'>
+          
+          {/* Logo */}
+          <Link
+            href='/'
+            className='text-xl sm:text-2xl font-bold text-blue-600'
+          >
+            QuizApp
+          </Link>
+
+          {/* Right Side */}
+          {user ? (
+            <div className='flex items-center gap-3 sm:gap-4'>
+              
+              {/* User Info */}
+              <div className='hidden sm:block text-right'>
+                <p className='text-sm font-medium text-gray-900'>
+                  {user.name}
+                </p>
+                <p className='text-xs text-gray-500 capitalize'>
+                  {user.role}
+                </p>
+              </div>
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                className='px-3 sm:px-4 py-1.5 bg-red-600 text-white text-xs sm:text-sm rounded-md hover:bg-red-700 transition'
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className='text-sm text-gray-500'>
+              Not signed in
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   );

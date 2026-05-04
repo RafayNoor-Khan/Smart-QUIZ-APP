@@ -5,29 +5,45 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  // For Instructor: List all students to assign them quizzes
+  // =========================
+  // GET ALL STUDENTS
+  // =========================
   async getAllStudents() {
     return this.prisma.user.findMany({
       where: { role: 'student' },
     });
   }
 
-  // For Instructor: See how a student is doing
+  // =========================
+  // STUDENT REPORT (INSTRUCTOR VIEW)
+  // =========================
   async getStudentReport(id: number) {
+    if (!id || id < 1) return null;
+
     const student = await this.prisma.user.findUnique({
       where: { id },
       include: {
         attempts: { include: { quiz: true } },
-        assignments: { where: { status: 'pending' }, include: { quiz: true } },
+        assignments: {
+          where: { status: 'pending' },
+          include: { quiz: true },
+        },
       },
     });
 
-    if (!student) return { error: 'User not found' };
+    if (!student) {
+      return { error: 'User not found' };
+    }
+
     return student;
   }
 
-  // For Student: See their own dashboard
+  // =========================
+  // STUDENT DASHBOARD
+  // =========================
   async getStudentDashboard(id: number) {
+    if (!id || id < 1) return null;
+
     return this.prisma.user.findUnique({
       where: { id },
       select: {

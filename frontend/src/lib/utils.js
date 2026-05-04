@@ -1,26 +1,31 @@
-import { formatDate, formatDistanceToNow } from 'date-fns';
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge"
 
-export const formatQuizDate = (date) => {
-  return formatDate(new Date(date), 'MMM dd, yyyy');
-};
+export function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
 
-export const formatQuizTime = (date) => {
-  return formatDate(new Date(date), 'MMM dd, yyyy HH:mm');
-};
+export function formatQuizDate(date) {
+  if (!date) return 'No deadline';
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
 
-export const getDaysLeft = (deadline) => {
+export function getDaysLeft(deadline) {
   if (!deadline) return null;
-  const today = new Date();
+  const now = new Date();
   const deadlineDate = new Date(deadline);
-  const diff = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
-  return diff;
-};
+  const diffTime = deadlineDate - now;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+}
 
-export const isDeadlinePassed = (deadline) => {
+export function isDeadlinePassed(deadline) {
   if (!deadline) return false;
   return new Date(deadline) < new Date();
-};
-
-export const cn = (...classes) => {
-  return classes.filter(Boolean).join(' ');
-};
+}

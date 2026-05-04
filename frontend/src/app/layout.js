@@ -1,19 +1,18 @@
-import Navbar from '@/components/common/Navbar';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
+const inter = Inter({ subsets: ['latin'] });
+
 export const metadata = {
-  title: 'QuizHub - AI Quiz Platform',
-  description: 'Create and take quizzes with AI',
+  title: 'QuizApp',
+  description: 'Create quizzes and track student progress',
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="bg-gray-50">
-        <Navbar />
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          {children}
-        </main>
+    <html lang='en'>
+      <body className={`${inter.className} bg-gradient-to-b from-blue-50 via-white to-blue-50 m-0 p-0`}>
+        {children}
       </body>
     </html>
   );
