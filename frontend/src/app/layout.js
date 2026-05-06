@@ -8,6 +8,12 @@ export const metadata = {
   description: 'Create quizzes and track student progress',
 };
 
+// ✅ ADD THIS (fixes mobile responsiveness)
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang='en'>

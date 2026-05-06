@@ -38,9 +38,10 @@ async function apiCall(endpoint, options = {}) {
 }
 
 // ===== AUTH =====
+// ===== AUTH =====
 export async function registerUser(email, name, password, role) {
   try {
-    const result = await apiCall('/auth/register', {
+    const result = await apiCall('/auth/instructor/register', {
       method: 'POST',
       body: JSON.stringify({ email, name, password, role }),
     });
@@ -49,12 +50,11 @@ export async function registerUser(email, name, password, role) {
       return { success: false, message: result.error };
     }
 
-    return { success: true, user: result.user };
+    return { success: true, user: result.user || result.data || result };
   } catch (error) {
     return { success: false, message: error.message };
   }
 }
-
 export async function loginUser(email, password) {
   try {
     const result = await apiCall('/auth/login', {

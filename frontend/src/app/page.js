@@ -12,7 +12,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import LoginForm from '@/components/auth/LoginForm';
-import RegisterForm from '@/components/auth/RegisterForm';
 
 export default function Home() {
   const router = useRouter();
@@ -33,7 +32,6 @@ export default function Home() {
 
   return (
     <div className='min-h-screen bg-black text-white flex flex-col'>
-      
       {/* NAVBAR */}
       <nav className='flex justify-between items-center px-4 sm:px-8 py-6'>
         <div className='flex items-center gap-3'>
@@ -57,22 +55,16 @@ export default function Home() {
               </DialogTitle>
             </DialogHeader>
 
+            {/* ✅ Only Login tab now */}
             <Tabs defaultValue='login' className='w-full'>
-              <TabsList className='grid grid-cols-2 bg-zinc-800 border-b border-zinc-700 rounded-none mb-6'>
+              <TabsList className='grid grid-cols-1 bg-zinc-800 border-b border-zinc-700 rounded-none mb-6'>
                 <TabsTrigger value='login' className='font-light'>
                   Sign In
-                </TabsTrigger>
-                <TabsTrigger value='register' className='font-light'>
-                  Sign Up
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value='login'>
                 <LoginForm onSuccess={() => setOpen(false)} />
-              </TabsContent>
-
-              <TabsContent value='register'>
-                <RegisterForm onSuccess={() => setOpen(false)} />
               </TabsContent>
             </Tabs>
           </DialogContent>
@@ -82,7 +74,6 @@ export default function Home() {
       {/* HERO */}
       <main className='flex-1 flex items-center justify-center px-4 sm:px-8 py-16 sm:py-20'>
         <div className='max-w-3xl w-full text-center space-y-12 sm:space-y-16'>
-          
           {/* Heading */}
           <div className='space-y-5'>
             <h1 className='text-4xl sm:text-6xl md:text-7xl font-light leading-tight'>
@@ -107,7 +98,6 @@ export default function Home() {
 
           {/* FEATURES */}
           <div className='grid gap-8 sm:gap-10 pt-6 sm:pt-10'>
-            
             <div>
               <h3 className='text-xs sm:text-sm text-gray-300 uppercase tracking-widest'>
                 Feature One

@@ -28,6 +28,7 @@ export default function RegisterForm({ onSuccess }) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.id]: e.target.value }));
@@ -40,6 +41,7 @@ export default function RegisterForm({ onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -51,18 +53,18 @@ export default function RegisterForm({ onSuccess }) {
       );
 
       if (result.success) {
-        localStorage.setItem('user', JSON.stringify(result.user));
-        localStorage.setItem('userId', result.user.id);
+        // ✅ IMPORTANT: Do NOT overwrite currently logged-in instructor
+        setSuccess('User created successfully.');
+
+        // reset form (optional)
+        setForm({ name: '', email: '', password: '', role: 'student' });
 
         onSuccess?.();
 
+        // optional redirect
         setTimeout(() => {
-          router.push(
-            form.role === 'instructor'
-              ? '/instructor/dashboard'
-              : '/dashboard'
-          );
-        }, 200);
+          router.push('/instructor/dashboard');
+        }, 400);
       } else {
         setError(result.message || 'Registration failed');
       }
@@ -75,11 +77,16 @@ export default function RegisterForm({ onSuccess }) {
 
   return (
     <form onSubmit={handleSubmit} className='space-y-6'>
-
       {error && (
         <Alert className='bg-red-500/10 border-red-500/50 text-red-400'>
           <AlertCircle className='h-4 w-4' />
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className='bg-green-500/10 border-green-500/50 text-green-400'>
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
@@ -145,7 +152,7 @@ export default function RegisterForm({ onSuccess }) {
             Creating account...
           </>
         ) : (
-          'Sign Up'
+          'Create User'
         )}
       </Button>
     </form>

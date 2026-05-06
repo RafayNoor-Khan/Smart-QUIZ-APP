@@ -5,6 +5,7 @@ import {
   UseGuards,
   Request,
   Get,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.guard';
@@ -15,10 +16,24 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   // =========================
-  // REGISTER
+  // REGISTER (PUBLIC) ❌ DISABLED
   // =========================
   @Post('register')
-  async register(@Body() body: any) {
+  async register() {
+    // Public signup disabled
+    throw new ForbiddenException('Public registration is disabled');
+  }
+
+  // =========================
+  // REGISTER (INSTRUCTOR ONLY) ✅ NEW
+  // =========================
+  @UseGuards(JwtAuthGuard)
+  @Post('instructor/register')
+  async instructorRegister(@Request() req: any, @Body() body: any) {
+    if (req.user?.role !== 'instructor') {
+      throw new ForbiddenException('Only instructor can register users');
+    }
+
     const { name, email, password, role } = body;
 
     const result = await this.authService.register(

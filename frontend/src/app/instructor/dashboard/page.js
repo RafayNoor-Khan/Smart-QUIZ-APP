@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAllQuizzes, deleteQuiz } from '@/lib/actions';
 import Link from 'next/link';
-import { LogOut, Plus, Trash2 } from 'lucide-react';
+import { LogOut, Plus, Trash2, UserPlus } from 'lucide-react';
 
 export default function InstructorDashboard() {
   const router = useRouter();
@@ -15,9 +15,6 @@ export default function InstructorDashboard() {
   const [deleting, setDeleting] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
-  // =========================
-  // AUTH + HYDRATION SAFE
-  // =========================
   useEffect(() => {
     const userData = localStorage.getItem('user');
 
@@ -40,9 +37,6 @@ export default function InstructorDashboard() {
     }
   }, []);
 
-  // =========================
-  // FETCH QUIZZES (SEPARATE)
-  // =========================
   useEffect(() => {
     if (!user) return;
 
@@ -60,9 +54,6 @@ export default function InstructorDashboard() {
     loadQuizzes();
   }, [user]);
 
-  // =========================
-  // LOGOUT
-  // =========================
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('userId');
@@ -70,9 +61,6 @@ export default function InstructorDashboard() {
     router.replace('/');
   };
 
-  // =========================
-  // DELETE QUIZ
-  // =========================
   const handleDeleteQuiz = async (quizId) => {
     setDeleting(quizId);
     try {
@@ -95,12 +83,9 @@ export default function InstructorDashboard() {
     0
   );
 
-  // =========================
-  // LOADING STATE
-  // =========================
   if (!user || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex items-center justify-center min-h-screen bg-black px-4">
         <div className="text-center text-gray-400">
           <div className="animate-spin h-8 w-8 border border-white border-t-transparent mx-auto mb-4 rounded-full" />
           Loading...
@@ -111,22 +96,27 @@ export default function InstructorDashboard() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-
       {/* HEADER */}
-      <div className="border-b border-zinc-800 py-8 px-8">
-        <div className="max-w-7xl mx-auto flex justify-between items-start">
-
-          <div>
-            <h1 className="text-5xl font-light">
+      <div className="border-b border-zinc-800 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 lg:flex-row lg:justify-between lg:items-start">
+          <div className="space-y-1 sm:space-y-2">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-light">
               Welcome, <span className="text-white">{user.name}</span>
             </h1>
-            <p className="text-gray-500 font-light">
+            <p className="text-gray-500 font-light text-sm sm:text-base">
               Manage quizzes and track progress
             </p>
           </div>
 
-          {/* ACTION BUTTONS (NEON ONLY HERE) */}
-          <div className="flex gap-2">
+          {/* ACTION BUTTONS */}
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            {/* ✅ NEW: Add User */}
+            <Link href="/instructor/register">
+              <button className="px-3 py-2 text-sm font-light border border-zinc-700 text-gray-400 hover:text-white hover:border-white transition rounded-sm flex items-center gap-2">
+                <UserPlus size={14} />
+                Add User
+              </button>
+            </Link>
 
             <Link href="/instructor/create-quiz">
               <button className="px-3 py-2 text-sm font-light border border-zinc-700 text-gray-400 hover:text-white hover:border-white transition rounded-sm flex items-center gap-2">
@@ -154,55 +144,54 @@ export default function InstructorDashboard() {
       </div>
 
       {/* STATS */}
-      <div className="max-w-7xl mx-auto px-8 py-12 grid grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         {[
           { label: 'Total Quizzes', value: quizzes.length },
           { label: 'Questions', value: totalQuestions },
           { label: 'Active', value: '—' },
         ].map((stat) => (
-          <div key={stat.label} className="border-b border-zinc-800 pb-6">
-            <p className="text-gray-500 text-sm uppercase">{stat.label}</p>
-            <p className="text-4xl font-light text-white">{stat.value}</p>
+          <div key={stat.label} className="border-b border-zinc-800 pb-5 sm:pb-6">
+            <p className="text-gray-500 text-xs sm:text-sm uppercase">{stat.label}</p>
+            <p className="text-3xl sm:text-4xl font-light text-white">{stat.value}</p>
           </div>
         ))}
       </div>
 
       {/* QUIZZES */}
-      <div className="max-w-7xl mx-auto px-8 pb-16">
-        <h2 className="text-3xl font-light mb-8">Your Quizzes</h2>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16">
+        <h2 className="text-2xl sm:text-3xl font-light mb-6 sm:mb-8">Your Quizzes</h2>
 
         {quizzes.length === 0 ? (
-          <div className="border border-zinc-800 p-10 text-center text-gray-500">
+          <div className="border border-zinc-800 p-8 sm:p-10 text-center text-gray-500">
             No quizzes yet
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-6">
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {quizzes.map((quiz) => (
               <div
                 key={quiz.id}
-                className="border border-zinc-800 p-6 rounded-lg space-y-4 relative"
+                className="border border-zinc-800 p-5 sm:p-6 rounded-lg space-y-4 relative"
               >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-xl text-white">{quiz.topic}</h3>
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-lg sm:text-xl text-white break-words">
+                      {quiz.topic}
+                    </h3>
                     <p className="text-gray-500 text-sm">
                       {quiz.questions?.length || 0} questions
                     </p>
                   </div>
-                  
-                  {/* DELETE BUTTON */}
+
                   <button
                     onClick={() => setShowDeleteConfirm(quiz.id)}
-                    className="p-2 text-gray-400 hover:text-red-400 transition"
+                    className="p-2 text-gray-400 hover:text-red-400 transition shrink-0"
                     title="Delete quiz"
                   >
                     <Trash2 size={16} />
                   </button>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-zinc-800">
-
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-zinc-800">
                   <Link href={`/instructor/analytics/${quiz.id}`} className="flex-1">
                     <button className="w-full border border-zinc-700 text-white py-2 rounded-sm hover:border-white transition text-sm">
                       Analytics
@@ -214,16 +203,14 @@ export default function InstructorDashboard() {
                       Assign
                     </button>
                   </Link>
-
                 </div>
 
-                {/* DELETE CONFIRMATION MODAL */}
                 {showDeleteConfirm === quiz.id && (
-                  <div className="absolute inset-0 bg-black/80 rounded-lg flex items-center justify-center border border-red-500/50">
-                    <div className="bg-black border border-red-500/50 rounded-lg p-6 space-y-4 max-w-xs">
+                  <div className="absolute inset-0 bg-black/80 rounded-lg flex items-center justify-center border border-red-500/50 p-4">
+                    <div className="bg-black border border-red-500/50 rounded-lg p-5 sm:p-6 space-y-4 w-full max-w-xs">
                       <p className="text-red-400 font-light">Delete this quiz?</p>
                       <p className="text-gray-400 text-sm">This action cannot be undone.</p>
-                      
+
                       <div className="flex gap-3 pt-2">
                         <button
                           onClick={() => setShowDeleteConfirm(null)}
@@ -244,7 +231,6 @@ export default function InstructorDashboard() {
                 )}
               </div>
             ))}
-
           </div>
         )}
       </div>
